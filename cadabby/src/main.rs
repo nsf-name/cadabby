@@ -24,6 +24,7 @@ fn main() {
 
     let mut compsave = 0;
     for chunk in compnum {
+	println!("{}", chunk);
         compsave += chunk.savings; 
     }
 
