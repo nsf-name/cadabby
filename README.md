@@ -5,6 +5,7 @@ Mirroring done so fast, it's magic
 
 TODO: 
 - Allocate a bunch of chunks from a file really quickly (use slab to do this fast since we know number of elements when chunkfile completes)
-- Use Rayon to accelerate both hashing and compressing steps
-- Then run our ZSTD compress check: either ZSTD is smaller, or it isn't
+- Serialize to-disk and back again, so we can benchmark how much it is on the wire
+- Learn how to walk through directories
+- Use clap to make a nice command-line parser interface
 - Figure out how we're going to use flatbuffer for this
