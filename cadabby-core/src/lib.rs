@@ -10,14 +10,33 @@ const CHUNK_MAXSIZE: usize = 4194304;
 const CHUNK_AVGSIZE: usize = 1048576;
 const CHUNK_MINSIZE: usize = 262144;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct Dir {
+    // TODO: abstract some trait
+    // for both files and dirs. inodes, perhaps?
+    
+    // TODO: we need a tree data structure for this;
+    // endless Vec<File<Vec<Chunk>>> will
+    // murder our performance to an absurd degree.
+    // Radix trees...
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct File {
+    pub chunks: Vec<Chunk>,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Hash)]
 pub struct Chunk {
     pub compressed: bool,
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     hash: Hash,
     number: usize,
     offset: usize,
     length: usize,
+    // TODO: this is bad design
+    // should implement as a method instead
     pub savings: usize,
 }
 

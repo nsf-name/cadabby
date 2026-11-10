@@ -15,6 +15,10 @@ fn main() {
     println!("total chunk count: {}", &splits.len());
     
     let compress = chunkcompress(splits);
+    for chunk in &compress {
+	println!("{}", chunk);
+    }
+    
     let compnum: Vec<_> = compress
         .into_iter()
         .filter(|x| x.compressed)
@@ -24,7 +28,6 @@ fn main() {
 
     let mut compsave = 0;
     for chunk in compnum {
-	println!("{}", chunk);
         compsave += chunk.savings; 
     }
 
