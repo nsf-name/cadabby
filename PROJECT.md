@@ -34,7 +34,7 @@ Internally the compression software will create a Merkle Patricia trie from the 
 - Benchmarks of this tool on real-world datasets
 
 ## Required Technology/Resources
-Just `rustc`, hope, and a bunch of climate datasets. Also the kernel sources at specific git checkouts.
+Just `rustc`, Emacs, hope, and a bunch of climate datasets. Also the kernel sources at specific git checkouts.
 
 ## AI Usage
 I will not use AI on this assignment.
