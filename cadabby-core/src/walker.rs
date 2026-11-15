@@ -1,7 +1,7 @@
 use crate::{FileTree, File, Directory, Symlink};
 use camino::{Utf8Path, Utf8DirEntry};
 use std::cmp::Ordering;
-use std::io;
+use std::{fs, io};
 
 // TODO: this is a very un-rust way to handle errors
 // I probably want to make a new type to hold errors

@@ -27,7 +27,7 @@ Internally the compression software will create a Merkle Patricia trie from the 
 
 ## List of Milestones
 - Compress a single file in parallel for every FastCDC chunk (currently done)
-- Walk a whole directory and save it in-memory efficiently
+- Walk a whole directory and save it in-memory efficiently (directory walking done, chunking not done)
 - Apply single-file chunking and hashing across many files
 - Deduplicate at the chunk level in a hash table
 - Some form of on-disk persistence of our recipe and minimal set of chunks
