@@ -5,5 +5,4 @@ edition = "2024"
 
 [dependencies]
 cadabby-core = { path = "../cadabby-core" }
-camino = "1.2.6"
 clap = { version = "4.6.7", features = ["derive", "cargo"] }

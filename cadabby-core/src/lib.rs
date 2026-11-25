@@ -1,5 +1,5 @@
-pub(crate) mod structs;
-pub(crate) use structs::{FileTree, File, Directory, Symlink};
+pub mod structs;
+pub use structs::{EntryKind, FileEntry, DirEntry};
 
 pub mod walker;
 pub use walker::walker;

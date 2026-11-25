@@ -1,7 +1,6 @@
 use cadabby_core::walker;
 use clap::{crate_version, Parser, ValueHint};
-use camino::{Utf8PathBuf};
-use std::io::ErrorKind;
+use std::path::PathBuf;
 use std::process;
 
 #[derive(Parser)]
@@ -20,64 +19,19 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let path = Utf8PathBuf::from(cli.path);
+    let path = PathBuf::from(cli.path);
 
-    let mut errors = vec![];
-    let entries_result = walker(&path,
-				&mut |e| errors.push(e),
-				&|a, b| a.file_name().cmp(&b.file_name()));
-
-    // Fatal errors go here.
-    let tree = match entries_result {
-        Ok(entries) => entries,
-        Err(error) => match error.kind() {
-            ErrorKind::NotFound => {
-                eprintln!("Error: the specified path does not exist.");
-                process::exit(1);
-            }
-            ErrorKind::NotADirectory => {
-                eprintln!("Error: the specified path is not a directory.");
-                process::exit(1);
-            }
-            _ => {
-                eprintln!("Error: {error:?}");
-                process::exit(1);
-            }
-        }
+    let (tree, skips) = match walker(&path) {
+	Ok(e) => e,
+	Err(e) => {
+	    eprintln!("Error: {}", e);
+	    process::exit(1);
+	}
     };
 
-    // Soft errors go here.
-    // TODO: these are not helpful.
-    for e in &errors {
-        eprintln!("Warning on read: {e}");
-    }
+    // TODO: implement Display for SkippedEntry
+    skips.into_iter().for_each(|e| eprintln!("Warning with file: {:?}", e));
 
-    println!("Successfully scanned: {}", tree.name);
-    println!("Children: {}", tree.entries.len());
-
+    println!("Successfully scanned: {} files", tree.len());
     println!("Success!");
-    // let data = fs::read(path).expect("file should exist");
-    // let splits = chunkfile(&data);
-
-    // println!("total chunk count: {}", &splits.len());
-
-    // let compress = chunkcompress(splits);
-    // for chunk in &compress {
-    // 	println!("{}", chunk);
-    // }
-
-    // let compnum: Vec<_> = compress
-    //     .into_iter()
-    //     .filter(|x| x.compressed)
-    //     .collect();
-
-    // println!("total compressed chunks: {}", &compnum.len());
-
-    // let mut compsave = 0;
-    // for chunk in compnum {
-    //     compsave += chunk.savings;
-    // }
-
-    // println!("compression saved {}MB", compsave as f32 / 1_000_000.0);
-    // println!("done");
 }

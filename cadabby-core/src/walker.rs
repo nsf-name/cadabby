@@ -1,77 +1,62 @@
-use crate::{FileTree, File, Directory, Symlink};
-use camino::{Utf8Path, Utf8DirEntry};
-use std::cmp::Ordering;
-use std::{fs, io};
+use crate::{EntryKind, DirEntry, FileEntry};
+use indextree::{Arena, NodeId};
+use walkdir::WalkDir;
+use std::path::{Path, PathBuf};
+use std::io;
 
-// TODO: this is a very un-rust way to handle errors
-// I probably want to make a new type to hold errors
-// Like:
-// struct WalkerResult {
-//    tree: FileTree,
-//    errors: Vec<io::Error>,
-// }
-// And then also need to do something like
-// enum WalkerError {
-//    Fatal(io::Error),    // couldn't read root dir, abort
-//    Skipped(PathBuf, io::Error),  // couldn't read this entry, logged and skipped
-// }
-// Which should be better overall. This design is a little weird as-is.
+#[derive(Debug)]
+pub struct SkippedEntry {
+    pub path: Option<PathBuf>,
+    pub error: io::Error,
+}
 
-pub fn walker(
-    root: &Utf8Path,
-    mut on_error: &mut dyn FnMut(io::Error),
-    compare: &dyn Fn(&Utf8DirEntry, &Utf8DirEntry) -> Ordering,
-) -> io::Result<Directory> {
-    let name = match root.file_name() {
-	Some(n) => n.to_string(),
-	None => {
-	    return Err(io::Error::new(
-		io::ErrorKind::InvalidData,
-		format!("Invalid path: {:?}", root)
-	    ));
-	}
-    };
-    let mut entries: Vec<Utf8DirEntry> = root.read_dir_utf8()?
-	// .map_err() accepts FnOnce trait which FnMut satisfies
-	.filter_map(|r| r.map_err(&mut on_error).ok())
-        .collect();
-    
-    entries.sort_by(&compare);
-    let mut directory: Vec<FileTree> = Vec::with_capacity(entries.len());
-    for e in entries {
-	let path = e.path();
-	let name = e.file_name();
-	let metadata = {
-	    match fs::metadata(&path) {
-		Ok(data) => data,
-		Err(error) => { on_error(error); continue; }
-	    }
-	};
-	let node = match path {
-	    path if path.is_dir() => FileTree::DirNode(
-		// TODO: potential oneshot error?
-		walker(&root.join(name), &mut on_error, &compare)?
-	    ),
-	    path if path.is_symlink() => FileTree::LinkNode(Symlink {
-		name: name.into(),
-		target: {
-		    match path.read_link_utf8() {
-			Ok(link) => link.to_string(),
-			Err(error) => { on_error(error); continue; }
-		    }
-		},
-		metadata: metadata,
-	    }),
-	    path if path.is_file() => FileTree::FileNode(File {
-		name: name.into(),
-		metadata: metadata,
-	    }),
-	    _ => unreachable!(),
-	};
-	directory.push(node);
+pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::Error> {
+    let root_name = root.to_string_lossy().into_owned();
+    // Let's use tree based arena with a decent amount of space.
+    let mut arena = Arena::with_capacity(4096);
+    // Now add the root directory.
+    let root_node = arena.new_node(EntryKind::Dir(crate::DirEntry {
+	name: String::from(root_name), 
+    }));
+
+    // Stacks are a convenient way to think about this construction.
+    let mut dir_stack: Vec<NodeId> = vec![root_node];    
+    let mut skips: Vec<SkippedEntry> = Vec::new();
+
+    for entry in WalkDir::new(root).min_depth(1) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                skips.push(SkippedEntry {
+                    path: e.path().map(Path::to_owned),
+                    error: e.into(),
+                });
+                continue;
+            }
+        };
+
+        let depth = entry.depth(); // min_depth(1) so this is >= 1
+        let parent = dir_stack[depth - 1];
+
+	// TODO: maybe don't worry about UTF-8 errors? 
+        let kind = if entry.file_type().is_dir() {
+	    EntryKind::Dir(DirEntry {
+                name: entry.file_name().to_string_lossy().into_owned(),
+            })
+        } else {
+            EntryKind::File(FileEntry {
+                name: entry.file_name().to_string_lossy().into_owned(),
+                size: 0,
+            })
+        };
+
+        let node = parent.append_value(kind, &mut arena);
+
+        if entry.file_type().is_dir() {
+            dir_stack.truncate(depth);
+            dir_stack.push(node);
+        }
     }
-    Ok(Directory {
-	name: name,
-	entries: directory,
-    })
+    
+    Ok((arena, skips))
 }
