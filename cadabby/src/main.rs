@@ -1,4 +1,4 @@
-use cadabby_core::walker;
+use cadabby_core::{walker, EntryKind};
 use clap::{crate_version, Parser, ValueHint};
 use std::path::PathBuf;
 use std::process;
@@ -33,5 +33,12 @@ fn main() {
     skips.into_iter().for_each(|e| eprintln!("Warning with file: {:?}", e));
 
     println!("Successfully scanned: {} files", tree.len());
+    for path in tree {
+	let name = match path.get() {
+	    EntryKind::File(f) => &f.name,
+	    EntryKind::Dir(d) => &d.name,
+	};
+	println!("{}", name);
+    }
     println!("Success!");
 }

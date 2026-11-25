@@ -23,7 +23,7 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
     let mut dir_stack: Vec<NodeId> = vec![root_node];    
     let mut skips: Vec<SkippedEntry> = Vec::new();
 
-    for entry in WalkDir::new(root).min_depth(1) {
+    for entry in WalkDir::new(root).min_depth(1).sort_by_file_name() {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
