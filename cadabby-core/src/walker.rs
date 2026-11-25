@@ -1,13 +1,19 @@
-use crate::{EntryKind, DirEntry, FileEntry};
+use crate::{EntryKind, DirEntry, FileEntry, SkippedEntry};
 use indextree::{Arena, NodeId};
 use walkdir::WalkDir;
-use std::path::{Path, PathBuf};
-use std::io;
+use std::{path::Path, path::PathBuf, io};
 
-#[derive(Debug)]
-pub struct SkippedEntry {
-    pub path: Option<PathBuf>,
-    pub error: io::Error,
+// builds a path up relative to the root.
+pub fn relpath(node: NodeId, arena: &mut Arena<EntryKind>) -> PathBuf{
+    node.ancestors(&arena) 
+	.filter_map(|e| match arena.get_data(e)? {
+            EntryKind::File(f) => Some(f.name.as_str()),
+            EntryKind::Dir(d) => Some(d.name.as_str()),
+	})
+	.collect::<Vec<_>>()
+	.into_iter() 
+	.rev()  // ancestors goes leaf->root, paths go root->leaf
+	.collect()
 }
 
 pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::Error> {
@@ -15,13 +21,12 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
     // Let's use tree based arena with a decent amount of space.
     let mut arena = Arena::with_capacity(4096);
     // Now add the root directory.
-    let root_node = arena.new_node(EntryKind::Dir(crate::DirEntry {
-	name: String::from(root_name), 
-    }));
+    let root_node = arena.new_node(EntryKind::Dir(
+	DirEntry { name: String::from(root_name) }
+    ));
 
-    // Stacks are a convenient way to think about this construction.
-    let mut dir_stack: Vec<NodeId> = vec![root_node];    
-    let mut skips: Vec<SkippedEntry> = Vec::new();
+    let mut stack: Vec<NodeId> = vec![root_node];    
+    let mut skips: Vec<SkippedEntry> = vec![];
 
     for entry in WalkDir::new(root).min_depth(1).sort_by_file_name() {
         let entry = match entry {
@@ -36,9 +41,8 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
         };
 
         let depth = entry.depth(); // min_depth(1) so this is >= 1
-        let parent = dir_stack[depth - 1];
-
-	// TODO: maybe don't worry about UTF-8 errors? 
+        let parent = stack[depth - 1];
+ 
         let kind = if entry.file_type().is_dir() {
 	    EntryKind::Dir(DirEntry {
                 name: entry.file_name().to_string_lossy().into_owned(),
@@ -53,8 +57,8 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
         let node = parent.append_value(kind, &mut arena);
 
         if entry.file_type().is_dir() {
-            dir_stack.truncate(depth);
-            dir_stack.push(node);
+            stack.truncate(depth);
+            stack.push(node);
         }
     }
     

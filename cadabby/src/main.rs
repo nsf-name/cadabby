@@ -1,5 +1,6 @@
-use cadabby_core::{walker, EntryKind};
+use cadabby_core::{walker, relpath};
 use clap::{crate_version, Parser, ValueHint};
+use rand::seq::IteratorRandom;
 use std::path::PathBuf;
 use std::process;
 
@@ -21,7 +22,7 @@ fn main() {
     let cli = Cli::parse();
     let path = PathBuf::from(cli.path);
 
-    let (tree, skips) = match walker(&path) {
+    let (mut tree, skips) = match walker(&path) {
 	Ok(e) => e,
 	Err(e) => {
 	    eprintln!("Error: {}", e);
@@ -33,12 +34,8 @@ fn main() {
     skips.into_iter().for_each(|e| eprintln!("Warning with file: {:?}", e));
 
     println!("Successfully scanned: {} files", tree.len());
-    for path in tree {
-	let name = match path.get() {
-	    EntryKind::File(f) => &f.name,
-	    EntryKind::Dir(d) => &d.name,
-	};
-	println!("{}", name);
-    }
+    let thing = tree.iter_node_ids().choose(&mut rand::rng()).unwrap();
+    let path = relpath(thing, &mut tree).into_string().unwrap();
+    println!("Relative path of root: {}", path);
     println!("Success!");
 }
