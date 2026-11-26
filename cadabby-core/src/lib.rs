@@ -11,7 +11,8 @@ pub use walker::{walker, abspath};
 
 pub mod utils;
 pub use utils::{
-    chunk,
-    hash,
+    chunker,
+    hasher,
+    chunkhash,
     compress,
 };

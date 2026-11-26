@@ -1,8 +1,9 @@
-use cadabby_core::{walker, abspath};
+use cadabby_core::{walker, abspath, chunkhash};
 use clap::{crate_version, Parser, ValueHint};
-use rand::seq::IteratorRandom;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
+use std::fs::File;
 
 #[derive(Parser)]
 #[command(name = "cadabby")]
@@ -22,6 +23,9 @@ fn main() {
     let cli = Cli::parse();
     let path = PathBuf::from(cli.path);
 
+    // TODO: make skips, pass it in as a borrow
+    // TODO: use anyhow to stop all this annoying branching
+
     let (root, tree, skips) = match walker(&path) {
 	Ok(e) => e,
 	Err(e) => {
@@ -33,8 +37,43 @@ fn main() {
     skips.into_iter().for_each(|e| eprintln!("Warning: {}", e));
 
     println!("Successfully scanned: {} paths ({} files)", tree.len(), root.leaves(&tree).count());
-    let thing = tree.iter_node_ids().choose(&mut rand::rng()).unwrap();
-    let path = abspath(thing, &tree).into_string().unwrap();
-    println!("Relative path of root: {}", path);
+
+    let mut hashes = HashMap::new();
+    
+    // TODO: better error handling
+    
+    'leaves: for leaf in root.leaves(&tree).into_iter() {
+	let path = abspath(leaf, &tree).into_string().unwrap();
+	let f = match File::open(&path) {
+	    Ok(f) => f,
+	    Err(f) => {
+		//eprintln!("Error: {}, {}", f, &path);
+		continue 'leaves;
+	    }
+	};
+	let ch = match chunkhash(f) {
+	    Ok(f) => f,
+	    Err(f) => {
+		//eprintln!("Error: {}, {}", f, &path);
+		continue 'leaves;
+	    }
+	};
+	for hash in ch {
+	    let entry = hashes.entry(hash.hash).or_insert(0);
+	    *entry += 1;
+	}
+    }
+
+    let values: Vec<f64> = hashes.values().map(|&v| v as f64).collect();
+    let n = values.len() as f64;
+    
+    let mean = values.iter().sum::<f64>() / n;
+    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    let std_dev = variance.sqrt();
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    
+    println!("Hash count: {}", hashes.len());
+    println!("mean: {}, var: {}, std. dev: {}, min: {}, max: {}", mean, variance, std_dev, min, max);
     println!("Success!");
 }
