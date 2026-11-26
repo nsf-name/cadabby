@@ -4,8 +4,9 @@ use walkdir::WalkDir;
 use std::{path::Path, path::PathBuf, io};
 
 // builds a path up relative to the root.
-pub fn relpath(node: NodeId, arena: &mut Arena<EntryKind>) -> PathBuf{
-    node.ancestors(&arena) 
+// TODO: should this be a method on Arena or EntryKind?
+pub fn abspath(node: NodeId, arena: &Arena<EntryKind>) -> PathBuf{
+    node.ancestors(&arena)
 	.filter_map(|e| match arena.get_data(e)? {
             EntryKind::File(f) => Some(f.name.as_str()),
             EntryKind::Dir(d) => Some(d.name.as_str()),
@@ -16,7 +17,7 @@ pub fn relpath(node: NodeId, arena: &mut Arena<EntryKind>) -> PathBuf{
 	.collect()
 }
 
-pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::Error> {
+pub fn walker(root: &Path) -> Result<(NodeId, Arena<EntryKind>, Vec<SkippedEntry>), io::Error> {
     let root_name = root.to_string_lossy().into_owned();
     // Let's use tree based arena with a decent amount of space.
     let mut arena = Arena::with_capacity(4096);
@@ -42,15 +43,15 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
 
         let depth = entry.depth(); // min_depth(1) so this is >= 1
         let parent = stack[depth - 1];
+	let name = entry.file_name().to_string_lossy().into_owned();
  
         let kind = if entry.file_type().is_dir() {
 	    EntryKind::Dir(DirEntry {
-                name: entry.file_name().to_string_lossy().into_owned(),
+                name: name,
             })
         } else {
             EntryKind::File(FileEntry {
-                name: entry.file_name().to_string_lossy().into_owned(),
-                size: 0,
+                name: name,
             })
         };
 
@@ -62,5 +63,5 @@ pub fn walker(root: &Path) -> Result<(Arena<EntryKind>, Vec<SkippedEntry>), io::
         }
     }
     
-    Ok((arena, skips))
+    Ok((root_node, arena, skips))
 }

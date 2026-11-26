@@ -1,4 +1,4 @@
-use cadabby_core::{walker, relpath};
+use cadabby_core::{walker, abspath};
 use clap::{crate_version, Parser, ValueHint};
 use rand::seq::IteratorRandom;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ fn main() {
     let cli = Cli::parse();
     let path = PathBuf::from(cli.path);
 
-    let (mut tree, skips) = match walker(&path) {
+    let (root, tree, skips) = match walker(&path) {
 	Ok(e) => e,
 	Err(e) => {
 	    eprintln!("Error: {}", e);
@@ -30,12 +30,11 @@ fn main() {
 	}
     };
 
-    // TODO: implement Display for SkippedEntry
-    skips.into_iter().for_each(|e| eprintln!("Warning with file: {:?}", e));
+    skips.into_iter().for_each(|e| eprintln!("Warning: {}", e));
 
-    println!("Successfully scanned: {} files", tree.len());
+    println!("Successfully scanned: {} paths ({} files)", tree.len(), root.leaves(&tree).count());
     let thing = tree.iter_node_ids().choose(&mut rand::rng()).unwrap();
-    let path = relpath(thing, &mut tree).into_string().unwrap();
+    let path = abspath(thing, &tree).into_string().unwrap();
     println!("Relative path of root: {}", path);
     println!("Success!");
 }
