@@ -17,7 +17,7 @@ pub fn abspath(node: NodeId, arena: &Arena<EntryKind>) -> PathBuf{
 	.collect()
 }
 
-pub fn walker(root: &Path) -> Result<(NodeId, Arena<EntryKind>, Vec<SkippedEntry>), io::Error> {
+pub fn walker(root: &Path, skips: &mut Vec<SkippedEntry>) -> Result<(NodeId, Arena<EntryKind>), io::Error> {
     let root_name = root.to_string_lossy().into_owned();
     // Let's use tree based arena with a decent amount of space.
     let mut arena = Arena::with_capacity(4096);
@@ -26,8 +26,7 @@ pub fn walker(root: &Path) -> Result<(NodeId, Arena<EntryKind>, Vec<SkippedEntry
 	DirEntry { name: String::from(root_name) }
     ));
 
-    let mut stack: Vec<NodeId> = vec![root_node];    
-    let mut skips: Vec<SkippedEntry> = vec![];
+    let mut stack: Vec<NodeId> = vec![root_node];
 
     for entry in WalkDir::new(root).min_depth(1).sort_by_file_name() {
         let entry = match entry {
@@ -63,5 +62,5 @@ pub fn walker(root: &Path) -> Result<(NodeId, Arena<EntryKind>, Vec<SkippedEntry
         }
     }
     
-    Ok((root_node, arena, skips))
+    Ok((root_node, arena))
 }

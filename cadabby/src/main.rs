@@ -1,9 +1,12 @@
-use cadabby_core::{walker, abspath, chunkhash};
+use cadabby_core::{SkippedEntry, abspath, chunkhash, walker, EntryKind};
 use clap::{crate_version, Parser, ValueHint};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::process;
-use std::fs::File;
+use anyhow::{Context, Result};
+use indextree::NodeId;
+use std::{
+    path::PathBuf,
+    collections::HashMap,
+    fs::File,
+};
 
 #[derive(Parser)]
 #[command(name = "cadabby")]
@@ -19,45 +22,34 @@ struct Cli {
     verbose: bool,
 }
 
-fn main() {
+fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
     let path = PathBuf::from(cli.path);
 
     // TODO: make skips, pass it in as a borrow
     // TODO: use anyhow to stop all this annoying branching
 
-    let (root, tree, skips) = match walker(&path) {
-	Ok(e) => e,
-	Err(e) => {
-	    eprintln!("Error: {}", e);
-	    process::exit(1);
-	}
-    };
+    let mut skips: Vec<SkippedEntry> = Vec::new();
+    let (root, tree) = walker(&path, &mut skips).context("failed to create tree")?; 
 
-    skips.into_iter().for_each(|e| eprintln!("Warning: {}", e));
-
-    println!("Successfully scanned: {} paths ({} files)", tree.len(), root.leaves(&tree).count());
+    println!("Successfully scanned: {} paths ({} files)",
+	     tree.len(), root.leaves(&tree).count());
 
     let mut hashes = HashMap::new();
+    let files: Vec<NodeId> = root.leaves(&tree)
+	.filter(|e| {
+	    let thing = tree.get_data(*e);
+	    match thing.unwrap() {
+		EntryKind::File(_) => true,
+		EntryKind::Dir(_) => false,
+	    }
+	})
+	.collect();
     
-    // TODO: better error handling
-    
-    'leaves: for leaf in root.leaves(&tree).into_iter() {
+    for leaf in files {
 	let path = abspath(leaf, &tree).into_string().unwrap();
-	let f = match File::open(&path) {
-	    Ok(f) => f,
-	    Err(f) => {
-		//eprintln!("Error: {}, {}", f, &path);
-		continue 'leaves;
-	    }
-	};
-	let ch = match chunkhash(f) {
-	    Ok(f) => f,
-	    Err(f) => {
-		//eprintln!("Error: {}, {}", f, &path);
-		continue 'leaves;
-	    }
-	};
+	let f = File::open(&path).context("opening file failed")?;
+	let ch = chunkhash(f).context("chunkhashing failed")?;
 	for hash in ch {
 	    let entry = hashes.entry(hash.hash).or_insert(0);
 	    *entry += 1;
@@ -76,4 +68,6 @@ fn main() {
     println!("Hash count: {}", hashes.len());
     println!("mean: {}, var: {}, std. dev: {}, min: {}, max: {}", mean, variance, std_dev, min, max);
     println!("Success!");
+    
+    Ok(())
 }
